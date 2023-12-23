@@ -33,5 +33,26 @@ const uploadOnCloudinary = async (localFilePath) => {
 //     console.log(result);
 //   }
 // );
+const extractPublicIdFromUrl = (url) => {
+  const parts = url.split("/");
+  const fileName = parts[parts.length - 1];
+  const publicId = fileName.split(".")[0];
+  return publicId;
+};
 
-export { uploadOnCloudinary };
+const deleteFromCloudinary = async (imageUrl) => {
+  try {
+    const publicId = extractPublicIdFromUrl(imageUrl);
+    await cloudinary.uploader.destroy(publicId, (err, res) => {
+      if (err) {
+        console.log(err.message);
+      } else {
+        console.log(`Asset deleted successfully`);
+      }
+    });
+  } catch (error) {
+    throw new ApiError(error.code, error.message);
+  }
+};
+
+export { uploadOnCloudinary, deleteFromCloudinary };
