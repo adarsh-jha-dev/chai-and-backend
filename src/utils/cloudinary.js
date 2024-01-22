@@ -19,7 +19,7 @@ const uploadOnCloudinary = async (localFilePath) => {
     });
     // file has been uploaded successfully
     fs.unlinkSync(localFilePath);
-    console.log(response);
+    // console.log(response);
     return response;
   } catch (error) {
     fs.unlinkSync(localFilePath); // remove the locally saved temporary file as the upload operation failed
@@ -56,4 +56,23 @@ const deleteFromCloudinary = async (imageUrl) => {
   }
 };
 
-export { uploadOnCloudinary, deleteFromCloudinary };
+const trimVideo = async (url, start, end) => {
+  try {
+    const publicId = extractPublicIdFromUrl(url);
+    const response = await cloudinary.uploader.explicit(publicId, {
+      type: "upload",
+      resource_type: "video",
+      start_offset: start,
+      end_offset: end,
+      overwrite: true, // new url of the trimmed version
+    });
+
+    // console.log(response);
+    return response;
+  } catch (error) {
+    console.error("Error trimming video:", error.message);
+    throw new Error("Failed to trim video");
+  }
+};
+
+export { uploadOnCloudinary, deleteFromCloudinary, trimVideo };

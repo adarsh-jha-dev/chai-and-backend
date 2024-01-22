@@ -4,6 +4,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import {
   deleteFromCloudinary,
+  trimVideo,
   uploadOnCloudinary,
 } from "../utils/cloudinary.js";
 
@@ -31,7 +32,7 @@ const UploadNewVideo = asyncHandler(async (req, res) => {
       owner,
       title,
       description,
-      duration: 0, // TODO : logic for getting the duration of the video as a string
+      duration: videoFile.duration,
       isPublished: true,
     });
 
@@ -47,25 +48,38 @@ const UploadNewVideo = asyncHandler(async (req, res) => {
 
 const DeleteVideo = asyncHandler(async (req, res) => {
   try {
-    const { id } = req.body;
+    const { id } = req.params;
     const user = req.user;
     const existingVideo = await Video.findById(id);
     if (!existingVideo) {
       throw new ApiError(404, "No such videos");
     }
 
-    if (existingVideo.owner !== user._id) {
+    if (existingVideo.owner.toString() !== user._id.toString()) {
       throw new ApiError(401, "Unauthorized action");
     }
 
-    const deletedVideo = await deleteFromCloudinary(existingVideo.videoFile);
-    const deletedThumbnail = await deleteFromCloudinary(
-      existingVideo.thumbnail
-    );
-
-    if (!deletedVideo || !deletedThumbnail) {
-      throw new ApiError(500, "Something went wrong while deleting the video");
-    }
+    await deleteFromCloudinary(existingVideo.videoFile)
+      .then(() => {
+        console.log("Video Deleted successfully");
+      })
+      .catch((e) => {
+        console.log(e);
+        throw new ApiError(
+          500,
+          "Something went wrong while deleting the video"
+        );
+      });
+    await deleteFromCloudinary(existingVideo.thumbnail)
+      .then(() => {
+        console.log(`Thumbnail deleted successfully`);
+      })
+      .catch((e) => {
+        throw new ApiError(
+          500,
+          "Something went wrong while deleting the thumbnail"
+        );
+      });
 
     const deletedItem = await Video.findByIdAndDelete(id);
     if (!deletedItem) {
@@ -80,4 +94,104 @@ const DeleteVideo = asyncHandler(async (req, res) => {
   }
 });
 
-export { UploadNewVideo, DeleteVideo };
+const UpdateTitleOrDescription = asyncHandler(async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = req.user;
+    const { title, description } = req.body;
+
+    const video = await Video.findById(id);
+    if (!video) {
+      throw new ApiError(404, "No such videos");
+    }
+
+    if (video.owner.toString() !== user._id.toString()) {
+      throw new ApiError(409, "Unauthorized Action");
+    }
+
+    if (!title && !description) {
+      throw new ApiError(400, "Nothing to update");
+    }
+
+    const updatedVideo = await Video.findByIdAndUpdate(id, {
+      title: title || video.title,
+      description: description || video.description,
+    });
+
+    if (!updatedVideo) {
+      throw new ApiError(400, "Something went wrong while updating the video");
+    }
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, updatedVideo, "Content updated successfully"));
+  } catch (error) {
+    throw new ApiError(500, "Internal server error" + error.message);
+  }
+});
+
+const UpdateContent = asyncHandler(async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = req.user;
+    const { start, end } = req.body;
+    const thumbnailLocalPath = req.files?.thumbnail[0].path;
+
+    const video = await Video.findById(id);
+    if (!video) {
+      throw new ApiError(404, "No such videos");
+    }
+
+    if (video.owner.toString() !== user._id.toString()) {
+      throw new ApiError(409, "Unauthorized Action");
+    }
+
+    const trimmedVideo = await trimVideo(video.videoFile, start, end);
+    if (!trimmedVideo) {
+      throw new ApiError(404, "Something went wrong while updating the video");
+    }
+    let newThumbnail;
+    if (thumbnailLocalPath) {
+      await deleteFromCloudinary(video.thumbnail).then(async () => {
+        newThumbnail = await uploadOnCloudinary(thumbnailLocalPath)
+          .then(() => {
+            console.log(`Thumbnail updated successfully`);
+          })
+          .catch((e) => {
+            throw new ApiError(
+              500,
+              "Something went wrong while updating the thumbnail",
+              error
+            );
+          });
+      });
+    }
+
+    const updatedContent = await Video.findByIdAndUpdate(id, {
+      videoFile: trimmedVideo.url,
+      thumbnail: thumbnailLocalPath ? newThumbnail.url : video.thumbnail,
+    });
+
+    if (!updatedContent) {
+      throw new ApiError(
+        400,
+        "Something went wrong while updating the video content"
+      );
+    }
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          updatedContent,
+          "Video Content updated successfully"
+        )
+      );
+  } catch (error) {
+    console.log(error);
+    throw new ApiError(500, "Internal server error");
+  }
+});
+
+export { UploadNewVideo, DeleteVideo, UpdateTitleOrDescription, UpdateContent };
