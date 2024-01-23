@@ -94,11 +94,12 @@ const DeleteVideo = asyncHandler(async (req, res) => {
   }
 });
 
-const UpdateTitleOrDescription = asyncHandler(async (req, res) => {
+const UpdateTitleOrDescriptionOrThumbnail = asyncHandler(async (req, res) => {
   try {
     const { id } = req.params;
     const user = req.user;
     const { title, description } = req.body;
+    const thumbnailLocalPath = req.files?.thumbnail[0].path;
 
     const video = await Video.findById(id);
     if (!video) {
@@ -113,10 +114,35 @@ const UpdateTitleOrDescription = asyncHandler(async (req, res) => {
       throw new ApiError(400, "Nothing to update");
     }
 
-    const updatedVideo = await Video.findByIdAndUpdate(id, {
-      title: title || video.title,
-      description: description || video.description,
-    });
+    let newThumbnail;
+    if (thumbnailLocalPath) {
+      await deleteFromCloudinary(video.thumbnail).then(async () => {
+        await uploadOnCloudinary(thumbnailLocalPath)
+          .then((response) => {
+            newThumbnail = response;
+            console.log(`Thumbnail updated successfully`);
+          })
+          .catch((e) => {
+            throw new ApiError(
+              500,
+              "Something went wrong while updating the thumbnail",
+              error
+            );
+          });
+      });
+    }
+
+    const updatedVideo = await Video.findByIdAndUpdate(
+      id,
+      {
+        title: title || video.title,
+        description: description || video.description,
+        thumbnail: thumbnailLocalPath ? newThumbnail?.url : video.thumbnail,
+      },
+      {
+        new: true,
+      }
+    );
 
     if (!updatedVideo) {
       throw new ApiError(400, "Something went wrong while updating the video");
@@ -126,7 +152,7 @@ const UpdateTitleOrDescription = asyncHandler(async (req, res) => {
       .status(200)
       .json(new ApiResponse(200, updatedVideo, "Content updated successfully"));
   } catch (error) {
-    throw new ApiError(500, "Internal server error" + error.message);
+    throw new ApiError(500, "Internal server error " + error.message);
   }
 });
 
@@ -194,4 +220,78 @@ const UpdateContent = asyncHandler(async (req, res) => {
   }
 });
 
-export { UploadNewVideo, DeleteVideo, UpdateTitleOrDescription, UpdateContent };
+const getVideoById = asyncHandler(async (req, res) => {
+  try {
+    const { id } = req.params;
+    const video = await Video.findById(id);
+    if (!video) {
+      throw new ApiError(404, "No such videos");
+    }
+    return res
+      .status(200)
+      .json(new ApiResponse(200, video, "Video fetched successfully"));
+  } catch (error) {
+    console.log(error);
+    throw new ApiError(500, "Internal server error");
+  }
+});
+
+const togglePublishStatus = asyncHandler(async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = req.user;
+    const video = await Video.findById(id);
+    if (!video) {
+      throw new ApiError(404, "No such videos");
+    }
+
+    if (video.owner.toString() !== user._id.toString()) {
+      throw new ApiError(401, "Unauthorized action");
+    }
+
+    const updatedStatus = await Video.findByIdAndUpdate(
+      id,
+      {
+        isPublished: !video.isPublished,
+      },
+      {
+        new: true,
+      }
+    );
+
+    if (!updatedStatus) {
+      throw new ApiError(
+        409,
+        "Something went wrong while updating the status of the video"
+      );
+    }
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          updatedStatus,
+          "Publish status updated successfully"
+        )
+      );
+  } catch (error) {
+    throw new ApiError(500, "Internal server error");
+  }
+});
+
+const getAllVideos = asyncHandler(async (req, res) => {
+  try {
+    const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
+    const videos = await Video.find();
+  } catch (error) {}
+});
+
+export {
+  UploadNewVideo,
+  DeleteVideo,
+  UpdateTitleOrDescriptionOrThumbnail,
+  UpdateContent,
+  getVideoById,
+  togglePublishStatus,
+};

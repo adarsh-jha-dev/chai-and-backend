@@ -53,8 +53,6 @@ const registerUser = asyncHandler(async (req, res) => {
     coverImageLocalPath = req.files.coverImage[0].path;
   }
 
-  console.table(req.files);
-
   if (!avatarLocalPath) {
     throw new ApiError(409, "Avatar file is required");
   }
@@ -170,7 +168,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
       throw new ApiError(404, "Unauthorized request");
     }
 
-    const decodedRefreshTokenInfo = await jwt.verify(
+    const decodedRefreshTokenInfo = jwt.verify(
       incomingRefreshToken,
       process.env.REFRESH_TOKEN_SECRET
     );
@@ -247,7 +245,7 @@ const GetCurrentUser = asyncHandler(async (req, res) => {
 const UpdateAccountDetails = asyncHandler(async (req, res) => {
   try {
     const { fullname, email } = req.body;
-    if (!fullname || !email) {
+    if (!fullname && !email) {
       throw new ApiError(400, "All fields are required");
     }
 
@@ -299,34 +297,38 @@ const logoutUser = asyncHandler(async (req, res) => {
 const UpdateUserAvatar = asyncHandler(async (req, res) => {
   try {
     const avatarLocalPath = req.file?.path;
+
     if (!avatarLocalPath) {
-      throw new ApiError(400, "Avatar is missing");
+      throw new ApiError(400, "Avatar file is missing");
     }
 
-    // first of all, delete the existing avatar on cloudinary
-    const deletedFile = await deleteFromCloudinary(req.user?.avatar);
-    if (!deletedFile) {
-      throw new ApiError(400, "Some error occured while updating the avatar");
+    const isDeleted = await deleteFromCloudinary(req.user?.avatar);
+
+    if (!isDeleted) {
+      throw new ApiError(400, "Error while deleting the avatar");
     }
 
-    // upload the new avatar
     const avatar = await uploadOnCloudinary(avatarLocalPath);
-    if (!avatar?.url) {
-      throw new ApiError(400, "Error while updating avatar");
+
+    if (!avatar.url) {
+      throw new ApiError(400, "Error while uploading on avatar");
     }
 
     const user = await User.findByIdAndUpdate(
       req.user?._id,
       {
-        avatar: avatar.url,
+        $set: {
+          avatar: avatar.url,
+        },
       },
       { new: true }
     ).select("-password");
 
     return res
       .status(200)
-      .json(new ApiResponse(200, user, "Avatar updated successfully"));
+      .json(new ApiResponse(200, user, "Avatar image updated successfully"));
   } catch (error) {
+    console.log(error);
     throw new ApiError(500, "Internal server error");
   }
 });
