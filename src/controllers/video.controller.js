@@ -59,7 +59,7 @@ const DeleteVideo = asyncHandler(async (req, res) => {
       throw new ApiError(401, "Unauthorized action");
     }
 
-    await deleteFromCloudinary(existingVideo.videoFile)
+    await deleteFromCloudinary(existingVideo.videoFile, "video")
       .then(() => {
         console.log("Video Deleted successfully");
       })
@@ -70,7 +70,7 @@ const DeleteVideo = asyncHandler(async (req, res) => {
           "Something went wrong while deleting the video"
         );
       });
-    await deleteFromCloudinary(existingVideo.thumbnail)
+    await deleteFromCloudinary(existingVideo.thumbnail, "image")
       .then(() => {
         console.log(`Thumbnail deleted successfully`);
       })
@@ -99,7 +99,7 @@ const UpdateTitleOrDescriptionOrThumbnail = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const user = req.user;
     const { title, description } = req.body;
-    const thumbnailLocalPath = req.files?.thumbnail[0].path;
+    const thumbnailLocalPath = req.file?.path;
 
     const video = await Video.findById(id);
     if (!video) {
@@ -116,7 +116,7 @@ const UpdateTitleOrDescriptionOrThumbnail = asyncHandler(async (req, res) => {
 
     let newThumbnail;
     if (thumbnailLocalPath) {
-      await deleteFromCloudinary(video.thumbnail).then(async () => {
+      await deleteFromCloudinary(video.thumbnail, "image").then(async () => {
         await uploadOnCloudinary(thumbnailLocalPath)
           .then((response) => {
             newThumbnail = response;
@@ -178,7 +178,7 @@ const UpdateContent = asyncHandler(async (req, res) => {
     }
     let newThumbnail;
     if (thumbnailLocalPath) {
-      await deleteFromCloudinary(video.thumbnail).then(async () => {
+      await deleteFromCloudinary(video.thumbnail, "image").then(async () => {
         newThumbnail = await uploadOnCloudinary(thumbnailLocalPath)
           .then(() => {
             console.log(`Thumbnail updated successfully`);
@@ -283,7 +283,7 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
 const getAllVideos = asyncHandler(async (req, res) => {
   try {
     const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
-    const videos = await Video.find();
+    const videos = await Video.find({});
   } catch (error) {}
 });
 
@@ -294,4 +294,5 @@ export {
   UpdateContent,
   getVideoById,
   togglePublishStatus,
+  getAllVideos,
 };

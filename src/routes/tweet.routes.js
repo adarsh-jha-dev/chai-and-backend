@@ -10,7 +10,7 @@ import {
 const router = Router();
 
 router.route("/uploadnew").post(verifyJWT, CreateTweet);
-router.route("/update/:id").put(verifyJWT, UpdateTweet);
+router.route("/update/:id").patch(verifyJWT, UpdateTweet);
 router.route("/delete/:id").delete(verifyJWT, DeleteTweet);
 router.route("/get/:id").get(GetUserTweets);
 

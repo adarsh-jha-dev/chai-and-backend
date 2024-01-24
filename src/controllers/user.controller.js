@@ -213,12 +213,11 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 const ChangeCurrentPassword = asyncHandler(async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body;
-    const id = req.user?._id;
-    const user = await User.findById(id);
+    const user = await User.findById(req.user?._id);
     const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
 
     if (!isPasswordCorrect) {
-      throw new ApiError(400, "Invalid Old password");
+      throw new ApiError(400, "Invalid old password");
     }
 
     user.password = newPassword;
@@ -226,8 +225,9 @@ const ChangeCurrentPassword = asyncHandler(async (req, res) => {
 
     return res
       .status(200)
-      .json(new ApiResponse(200, {}, "Password updated successfully"));
+      .json(new ApiResponse(200, {}, "Password changed successfully"));
   } catch (error) {
+    console.log(error);
     throw new ApiError(500, "Internal server error");
   }
 });
@@ -249,12 +249,14 @@ const UpdateAccountDetails = asyncHandler(async (req, res) => {
       throw new ApiError(400, "All fields are required");
     }
 
-    const user = await User.findByIdAndUpdate(
+    const user = await User.findById(req.user?._id);
+
+    const updatedUser = await User.findByIdAndUpdate(
       req.user?._id,
       {
         $set: {
-          fullname,
-          email,
+          fullname: fullname ? fullname : user.fullname,
+          email: email ? email : user.email,
         },
       },
       { new: true }
@@ -262,8 +264,15 @@ const UpdateAccountDetails = asyncHandler(async (req, res) => {
 
     return res
       .status(200)
-      .json(new ApiResponse(200, user, "Account Details updated successfully"));
+      .json(
+        new ApiResponse(
+          200,
+          updatedUser,
+          "Account Details updated successfully"
+        )
+      );
   } catch (error) {
+    console.log(error);
     throw new ApiError(500, "Internal server error");
   }
 });
@@ -301,17 +310,15 @@ const UpdateUserAvatar = asyncHandler(async (req, res) => {
     if (!avatarLocalPath) {
       throw new ApiError(400, "Avatar file is missing");
     }
-
-    const isDeleted = await deleteFromCloudinary(req.user?.avatar);
-
-    if (!isDeleted) {
-      throw new ApiError(400, "Error while deleting the avatar");
-    }
-
     const avatar = await uploadOnCloudinary(avatarLocalPath);
 
     if (!avatar.url) {
       throw new ApiError(400, "Error while uploading on avatar");
+    }
+    const isDeleted = await deleteFromCloudinary(req.user?.avatar, "image");
+
+    if (!isDeleted) {
+      throw new ApiError(400, "Error while deleting the avatar");
     }
 
     const user = await User.findByIdAndUpdate(
@@ -341,16 +348,19 @@ const UpdateUserCoverImage = asyncHandler(async (req, res) => {
     }
 
     // first of all , delete the existing coverImage - if any
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+    if (!coverImage?.url) {
+      throw new ApiError(400, "Error while updating Cover Image");
+    }
     const coverImageUrl = req.user?.coverImage;
-    if (coverImageUrl) {
-      const deletedCoverImage = await deleteFromCloudinary(coverImageUrl);
+    if (coverImageUrl !== "") {
+      const deletedCoverImage = await deleteFromCloudinary(
+        coverImageUrl,
+        "image"
+      );
       if (!deletedCoverImage) {
         throw new ApiError(400, "Cover image updation failed.");
       }
-    }
-    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
-    if (!avatar?.url) {
-      throw new ApiError(400, "Error while updating Cover Image");
     }
 
     const user = await User.findByIdAndUpdate(
@@ -365,6 +375,7 @@ const UpdateUserCoverImage = asyncHandler(async (req, res) => {
       .status(200)
       .json(new ApiResponse(200, user, "Cover Image updated successfully"));
   } catch (error) {
+    console.log(error);
     throw new ApiError(500, "Internal server error");
   }
 });
@@ -408,7 +419,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
           },
           isSubscribed: {
             $cond: {
-              if: { $in: [req?.user?._id, "$subcribers.subscriber"] },
+              if: { $in: [req?.user?._id, "$subscribers.subscriber"] },
               then: true,
               else: false,
             },
@@ -424,7 +435,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
           isSubscribed: 1,
           avatar: 1,
           coverImage: 1,
-          email: 2,
+          email: 1,
         },
       },
     ]);

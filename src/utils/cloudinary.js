@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
+import { ApiError } from "./ApiError.js";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -34,22 +35,45 @@ const uploadOnCloudinary = async (localFilePath) => {
 //     console.log(result);
 //   }
 // );
-// const extractPublicIdFromUrl = (url) => {
-//   const parts = url.split("/");
-//   const fileName = parts[parts.length - 1];
-//   const publicId = fileName.split(".")[0];
-//   return publicId;
+const extractPublicIdFromUrl = (url) => {
+  const parts = url.split("/");
+  const fileName = parts[parts.length - 1];
+  const publicId = fileName.split(".")[0];
+  return publicId;
+};
+
+// const deleteImageFromCloudinary = async (url) => {
+//   const publicId = extractPublicIdFromUrl(url);
+//   try {
+//     await cloudinary.uploader.destroy(publicId, (err, res) => {
+//       if (err) {
+//         console.log(err.message);
+//       } else {
+//         console.log(`Asset deleted successfully`);
+//       }
+//     });
+//   } catch (error) {
+//     throw new ApiError(error.code, error.message);
+//   }
 // };
 
-const deleteFromCloudinary = async (url) => {
+// generalized function for deletion of both - videos/images
+
+const deleteFromCloudinary = async (url, resource_type = "image") => {
   try {
-    if (!url) return null;
-    const deletedResponse = await cloudinary.uploader.destroy(url, {
-      resource_type: "auto",
+    const publicId = extractPublicIdFromUrl(url);
+    const deletedAsset = await cloudinary.uploader.destroy(publicId, {
+      resource_type,
     });
-    return deletedResponse;
+
+    if (!deletedAsset) {
+      throw new ApiError(500, "Something went wrong while deleting the video");
+    }
+
+    console.log(`Asset deleted successfully`);
   } catch (error) {
-    return null;
+    console.log(error);
+    throw new ApiError(500, "Internal server error");
   }
 };
 
@@ -72,4 +96,4 @@ const trimVideo = async (url, start, end) => {
   }
 };
 
-export { uploadOnCloudinary, deleteFromCloudinary, trimVideo };
+export { uploadOnCloudinary, trimVideo, deleteFromCloudinary };
