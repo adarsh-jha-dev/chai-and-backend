@@ -67,7 +67,7 @@ const deleteFromCloudinary = async (url, resource_type = "image") => {
     });
 
     if (!deletedAsset) {
-      throw new ApiError(500, "Something went wrong while deleting the video");
+      throw new ApiError(500, "Something went wrong while deleting the asset");
     }
 
     console.log(`Asset deleted successfully`);

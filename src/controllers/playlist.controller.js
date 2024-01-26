@@ -78,28 +78,24 @@ const GetPlaylistById = asyncHandler(async (req, res) => {
           from: "videos",
           localField: "videos",
           foreignField: "_id",
-          as: "videosWithDetails",
+          as: "videos",
         },
       },
       {
-        $unwind: "$videosWithDetails",
+        $unwind: "$videos",
       },
       {
         $project: {
-          _id: 1,
           name: 1,
           description: 1,
           owner: 1,
-          createdAt: 1,
-          updatedAt: 1,
-          videos: {
-            videoFile: "$videosWithDetails.videoFile",
-            thumbnail: "$videosWithDetails.thumbnail",
-            title: "$videosWithDetails.title",
-            description: "$videosWithDetails.description",
-            views: "$videosWithDetails.views",
-            duration: "$videosWithDetails.duration",
-          },
+          "videos._id": 1,
+          "videos.videoFile": 1,
+          "videos.thumbnail": 1,
+          "videos.title": 1,
+          "videos.description": 1,
+          "videos.duration": 1,
+          "videos.views": 1,
         },
       },
       {
@@ -108,13 +104,8 @@ const GetPlaylistById = asyncHandler(async (req, res) => {
           name: { $first: "$name" },
           description: { $first: "$description" },
           owner: { $first: "$owner" },
-          createdAt: { $first: "$createdAt" },
-          updatedAt: { $first: "$updatedAt" },
           videos: { $push: "$videos" },
         },
-      },
-      {
-        $unwind: "$videos",
       },
     ]);
 
