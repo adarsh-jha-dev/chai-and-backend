@@ -6,6 +6,9 @@ import {
   UpdateContent,
   UpdateTitleOrDescriptionOrThumbnail,
   UploadNewVideo,
+  addVideoToWatchHistory,
+  fetchWatchHistory,
+  getAllVideos,
   getVideoById,
   togglePublishStatus,
 } from "../controllers/video.controller.js";
@@ -26,6 +29,7 @@ router.route("/uploadnew").post(
   ]),
   UploadNewVideo
 );
+router.route("/getvideos").get(verifyJWT, getAllVideos);
 router.route("/delete/:id").delete(verifyJWT, DeleteVideo);
 router
   .route("/updatecontent/:id")
@@ -37,5 +41,7 @@ router
 router.route("/updatevideocontent/:id").patch(verifyJWT, UpdateContent);
 router.route("/get/:id").get(getVideoById);
 router.route("/togglepublish/:id").patch(verifyJWT, togglePublishStatus);
+router.route("/watch/:id").patch(verifyJWT, addVideoToWatchHistory);
+router.route("/history").get(verifyJWT, fetchWatchHistory);
 
 export default router;

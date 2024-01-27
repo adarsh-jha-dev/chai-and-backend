@@ -1,3 +1,4 @@
+import { User } from "../models/user.models.js";
 import { Video } from "../models/video.models.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
@@ -276,15 +277,188 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
         )
       );
   } catch (error) {
+    console.log(error);
     throw new ApiError(500, "Internal server error");
   }
 });
 
 const getAllVideos = asyncHandler(async (req, res) => {
   try {
-    const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
-    const videos = await Video.find({});
-  } catch (error) {}
+    let { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
+
+    page = isNaN(page) ? 1 : Number(page);
+    limit = isNaN(page) ? 10 : Number(limit);
+    if (page < 0) {
+      page = 1;
+    }
+    if (limit <= 0) {
+      limit = 10;
+    }
+
+    const matchStage = {};
+    if (userId && isValidObjectId(userId)) {
+      matchStage["$match"] = {
+        owner: new mongoose.Types.ObjectId(userId),
+      };
+    } else if (query) {
+      matchStage["$match"] = {
+        $or: [
+          { title: { $regex: query, $options: "i" } },
+          { description: { $regex: query, $options: "i" } },
+        ],
+      };
+    } else {
+      matchStage["$match"] = {};
+    }
+    if (userId && query) {
+      matchStage["$match"] = {
+        $and: [
+          { owner: new mongoose.Types.ObjectId(userId) },
+          {
+            $or: [
+              { title: { $regex: query, $options: "i" } },
+              { description: { $regex: query, $options: "i" } },
+            ],
+          },
+        ],
+      };
+    }
+
+    const sortStage = {};
+    if (sortBy && sortType) {
+      sortStage["$sort"] = {
+        [sortBy]: sortType === "asc" ? 1 : -1,
+      };
+    } else {
+      sortStage["$sort"] = {
+        createdAt: -1,
+      };
+    }
+
+    const skipStage = { $skip: (page - 1) * limit };
+    const limitStage = { $limit: limit };
+
+    const videos = await Video.aggregate([
+      matchStage,
+      {
+        $lookup: {
+          from: "users",
+          localField: "owner",
+          foreignField: "_id",
+          as: "owner",
+          pipeline: [
+            {
+              $project: {
+                fullname: 1,
+                username: 1,
+                avatar: 1,
+              },
+            },
+          ],
+        },
+      },
+      {
+        $lookup: {
+          from: "likes",
+          localField: "_id",
+          foreignField: "video",
+          as: "likes",
+        },
+      },
+      sortStage,
+      {
+        $skip: (page - 1) * limit,
+      },
+      {
+        $limit: limit,
+      },
+      {
+        $addFields: {
+          owner: {
+            $first: "$owner",
+          },
+          likes: {
+            $size: "$likes",
+          },
+        },
+      },
+    ]);
+
+    if (!videos) {
+      throw new ApiError(404, "No videos found");
+    }
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, videos, "video fetched successfully !"));
+  } catch (error) {
+    console.log(error);
+    throw new ApiError(500, "Internal server error");
+  }
+});
+
+const addVideoToWatchHistory = asyncHandler(async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = req.user;
+    if (!id) {
+      throw new ApiError(400, "Video Id is missing");
+    }
+
+    const video = await Video.findById(id);
+    if (!video) {
+      throw new ApiError(404, "No such videos");
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      user._id,
+      {
+        $push: {
+          watchVideos: video._id,
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      throw new ApiError(
+        400,
+        "Something went wrong while updating the watch history"
+      );
+    }
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, updatedUser, "Watch History updated successfully")
+      );
+  } catch (error) {
+    console.log(error);
+    throw new ApiError(500, "Internal server error");
+  }
+});
+
+const fetchWatchHistory = asyncHandler(async (req, res) => {
+  try {
+    const watchedVideos = req.user?.watchVideos;
+
+    const videos = await Video.find({
+      _id: { $in: watchedVideos },
+    });
+
+    if (!videos) {
+      throw new ApiError(
+        400,
+        "Something went wrong while fetching the history"
+      );
+    }
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, videos, "Watch History fetched successfully"));
+  } catch (error) {
+    console.log(error);
+    throw new ApiError(500, "Internal server error");
+  }
 });
 
 export {
@@ -295,4 +469,6 @@ export {
   getVideoById,
   togglePublishStatus,
   getAllVideos,
+  addVideoToWatchHistory,
+  fetchWatchHistory,
 };

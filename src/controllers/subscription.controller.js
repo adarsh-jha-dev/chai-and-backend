@@ -70,27 +70,49 @@ const GetUserChannelSubscribers = asyncHandler(async (req, res) => {
       throw new ApiError(400, "channel not found!");
     }
 
-    const subscriptions = await Subscription.aggregate([
+    const subscribers = await User.aggregate([
       {
         $match: {
-          channel: new mongoose.Types.ObjectId(id?.trim()),
+          _id: new mongoose.Types.ObjectId(id),
         },
       },
       {
         $lookup: {
-          from: "users",
-          localField: "subscriber",
-          foreignField: "_id",
+          from: "subscriptions",
+          localField: "_id",
+          foreignField: "channel",
           as: "subscribers",
+          pipeline: [
+            {
+              $lookup: {
+                from: "users",
+                localField: "subscriber",
+                foreignField: "_id",
+                as: "subscriber",
+                pipeline: [
+                  {
+                    $project: {
+                      fullname: 1,
+                      username: 1,
+                      email: 1,
+                      avatar: 1,
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+      {
+        $addFields: {
+          subscribers: "$subscribers",
         },
       },
       {
         $project: {
-          subscribers: {
-            username: 1,
-            fullName: 1,
-            avatar: 1,
-          },
+          password: 0,
+          refreshToken: 0,
         },
       },
     ]);
@@ -100,7 +122,7 @@ const GetUserChannelSubscribers = asyncHandler(async (req, res) => {
       .json(
         new ApiResponse(
           200,
-          subscriptions[0],
+          subscribers[0],
           "Channel subscribers fetched Successfull!!"
         )
       );
@@ -122,25 +144,35 @@ const GetSubscribedChannels = asyncHandler(async (req, res) => {
       throw new ApiError(404, "No such users");
     }
 
-    const subscribedChannels = await Subscription.aggregate([
+    const subscribedChannels = await User.aggregate([
       {
         $match: {
-          subscriber: new mongoose.Types.ObjectId(id),
+          _id: new mongoose.Types.ObjectId(subscriber._id),
         },
       },
       {
         $lookup: {
-          from: "users",
-          localField: "channel",
-          foreignField: "_id",
-          as: "channelsSubscribedTo",
+          from: "subscriptions",
+          localField: "_id",
+          foreignField: "subscriber",
+          as: "subscribedChannels",
           pipeline: [
             {
-              $project: {
-                fullname: 1,
-                username: 1,
-                avatar: 1,
-                coverImage: 1,
+              $lookup: {
+                from: "users",
+                localField: "channel",
+                foreignField: "_id",
+                as: "channel",
+                pipeline: [
+                  {
+                    $project: {
+                      fullname: 1,
+                      username: 1,
+                      avatar: 1,
+                      coverImage: 1,
+                    },
+                  },
+                ],
               },
             },
           ],
@@ -148,12 +180,13 @@ const GetSubscribedChannels = asyncHandler(async (req, res) => {
       },
       {
         $addFields: {
-          channelsSubscribedTo: "$channelsSubscribedTo",
+          subscribedChannels: "$subscribedChannels",
         },
       },
       {
         $project: {
-          channelsSubscribedTo: 1,
+          password: 0,
+          refreshToken: 0,
         },
       },
     ]);
@@ -169,7 +202,7 @@ const GetSubscribedChannels = asyncHandler(async (req, res) => {
       .json(
         new ApiResponse(
           200,
-          subscribedChannels,
+          subscribedChannels[0],
           "Subscribed channels fetched successfully"
         )
       );
