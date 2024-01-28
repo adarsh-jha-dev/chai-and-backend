@@ -282,7 +282,7 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
   }
 });
 
-const getAllVideos = asyncHandler(async (req, res) => {
+const getAllVideosWithQuery = asyncHandler(async (req, res) => {
   try {
     let { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
 
@@ -397,6 +397,22 @@ const getAllVideos = asyncHandler(async (req, res) => {
   }
 });
 
+const getAllVideos = asyncHandler(async (req, res) => {
+  try {
+    const videos = await Video.find({ _id: { $ne: null }, isPublished: true });
+    if (!videos) {
+      throw new ApiError(400, "No videos found");
+    }
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, videos, "Videos fetched successfully"));
+  } catch (error) {
+    console.log(error);
+    throw new ApiError(500, "Internal server error");
+  }
+});
+
 const addVideoToWatchHistory = asyncHandler(async (req, res) => {
   try {
     const { id } = req.params;
@@ -474,6 +490,7 @@ export {
   UpdateContent,
   getVideoById,
   togglePublishStatus,
+  getAllVideosWithQuery,
   getAllVideos,
   addVideoToWatchHistory,
   fetchWatchHistory,
