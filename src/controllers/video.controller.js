@@ -420,7 +420,13 @@ const addVideoToWatchHistory = asyncHandler(async (req, res) => {
       { new: true }
     );
 
-    if (!updatedUser) {
+    const updatedVideo = await Video.findByIdAndUpdate(id, {
+      $set: {
+        views: video.views + 1,
+      },
+    });
+
+    if (!updatedUser || !updatedVideo) {
       throw new ApiError(
         400,
         "Something went wrong while updating the watch history"

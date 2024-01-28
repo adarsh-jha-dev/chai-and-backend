@@ -88,6 +88,7 @@ const GetChannelVideos = asyncHandler(async (req, res) => {
           _id: {
             $ne: null,
           },
+          isPublished: true,
         },
       },
       {
