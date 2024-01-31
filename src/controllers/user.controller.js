@@ -46,9 +46,9 @@ const registerUser = asyncHandler(async (req, res) => {
 
   let coverImageLocalPath;
   if (
-    req.files.coverImage &&
-    Array.isArray(req.files.coverImage) &&
-    req.files.coverImage.length > 0
+    req.files?.coverImage &&
+    Array.isArray(req.files?.coverImage) &&
+    req.files?.coverImage.length > 0
   ) {
     coverImageLocalPath = req.files.coverImage[0].path;
   }
@@ -500,6 +500,45 @@ const getWatchHistory = asyncHandler(async (req, res) => {
         )
       );
   } catch (error) {
+    console.log(error);
+    throw new ApiError(500, "Internal server error");
+  }
+});
+
+const deleteAccount = asyncHandler(async (req, res) => {
+  try {
+    const user = req.user;
+
+    // TODO : delete all the other records - videos, comments, subscriptions, likes of the user
+
+    const deletedAvatar = await deleteFromCloudinary(user?.avatar);
+    if (!deletedAvatar) {
+      throw new ApiError(400, "Some error occured while deleting the avatar");
+    }
+    if (user.coverImage !== "") {
+      const deletedCoverImage = await deleteFromCloudinary(user?.avatar);
+      if (!deletedCoverImage) {
+        throw new ApiError(
+          400,
+          "Some error occured while deleting the cover Image"
+        );
+      }
+    }
+    const deletingUser = await User.findByIdAndDelete(user?._id);
+    if (!deletingUser) {
+      throw new ApiError(
+        400,
+        "Something went wrong while deleting the account"
+      );
+    }
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, { deleted: true }, "Account deleted successfully")
+      );
+  } catch (error) {
+    console.log(error);
     throw new ApiError(500, "Internal server error");
   }
 });
@@ -516,4 +555,5 @@ export {
   UpdateUserCoverImage,
   getUserChannelProfile,
   getWatchHistory,
+  deleteAccount,
 };

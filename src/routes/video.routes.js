@@ -30,7 +30,7 @@ router.route("/uploadnew").post(
   UploadNewVideo
 );
 router.route("/getvideos").get(verifyJWT, getAllVideos);
-router.route("/getall").get(verifyJWT, getAllVideos);
+router.route("/getall").get(getAllVideos);
 router.route("/delete/:id").delete(verifyJWT, DeleteVideo);
 router
   .route("/updatecontent/:id")

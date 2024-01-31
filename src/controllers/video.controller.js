@@ -399,7 +399,35 @@ const getAllVideosWithQuery = asyncHandler(async (req, res) => {
 
 const getAllVideos = asyncHandler(async (req, res) => {
   try {
-    const videos = await Video.find({ _id: { $ne: null }, isPublished: true });
+    const videos = await Video.aggregate([
+      {
+        $match: {
+          _id: { $ne: null },
+          isPublished: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "owner",
+          foreignField: "_id",
+          as: "owner",
+          pipeline: [
+            {
+              $project: {
+                username: 1,
+                avatar: 1,
+              },
+            },
+          ],
+        },
+      },
+      {
+        $addFields: {
+          owner: { $first: "$owner" },
+        },
+      },
+    ]);
     if (!videos) {
       throw new ApiError(400, "No videos found");
     }
